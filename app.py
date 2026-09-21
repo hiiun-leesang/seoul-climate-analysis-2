@@ -1,4 +1,5 @@
 # app.py
+import os
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -8,6 +9,11 @@ import plotly.graph_objects as go
 # ---------------------------------------------------------------------------
 @st.cache_data
 def load_data(path: str = "seoul_temperature.csv") -> pd.DataFrame:
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"데이터 파일을 찾을 수 없습니다: {path}\n"
+                                f"현재 작업 디렉터리: {os.getcwd()}\n"
+                                f"저장소 루트에 '{path}' 파일이 있는지 확인하세요.")
+
     df = pd.read_csv(path, encoding="utf-8")
 
     if "날짜" in df.columns:
@@ -21,17 +27,20 @@ def load_data(path: str = "seoul_temperature.csv") -> pd.DataFrame:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # 일교차 컬럼
     if "최고기온(℃)" in df.columns and "최저기온(℃)" in df.columns:
         df["일교차"] = df["최고기온(℃)"] - df["최저기온(℃)"]
 
     return df
 
 
-df = load_data()
+try:
+    df = load_data()
+except FileNotFoundError as e:
+    st.error(str(e))
+    st.stop()
 
 if df.empty or "연도" not in df.columns:
-    st.error("데이터 파일을 읽을 수 없습니다. 'seoul_temperature.csv'가 실행 경로에 있는지 확인하세요.")
+    st.error("데이터 파일이 비어 있거나 필요한 컬럼이 없습니다.")
     st.stop()
 
 # ---------------------------------------------------------------------------
@@ -124,7 +133,6 @@ st.plotly_chart(fig_heatmap, use_container_width=True)
 # ---------------------------------------------------------------------------
 col_top, col_bottom = st.columns(2)
 
-# 최고기온 상위 10일
 top10_high = (
     df.dropna(subset=["최고기온(℃)"])
     .nlargest(10, "최고기온(℃)")
@@ -137,7 +145,6 @@ with col_top:
     st.subheader("최고기온 상위 10일")
     st.dataframe(top10_high, use_container_width=True, hide_index=True)
 
-# 최저기온 하위 10일
 bottom10_low = (
     df.dropna(subset=["최저기온(℃)"])
     .nsmallest(10, "최저기온(℃)")
